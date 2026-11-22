@@ -101,8 +101,14 @@ public final class Mime {
   }
 
   public static String compose(
-      String from, String groups, String subject, String body, String references, List<Path> files,
-      List<Attachment> embedded) throws Exception {
+      String from,
+      String groups,
+      String subject,
+      String body,
+      String references,
+      List<Path> files,
+      List<Attachment> embedded)
+      throws Exception {
     for (String value : List.of(from, groups, subject, references))
       if (value.contains("\r") || value.contains("\n"))
         throw new IllegalArgumentException("Headers cannot contain newlines");
@@ -144,7 +150,10 @@ public final class Mime {
         if (total > 64L * 1024 * 1024)
           throw new IOException("Posting attachments are limited to 64 MiB total");
         var p = new MimeBodyPart();
-        p.setDataHandler(new DataHandler(new jakarta.mail.util.ByteArrayDataSource(attachment.bytes(), "application/octet-stream")));
+        p.setDataHandler(
+            new DataHandler(
+                new jakarta.mail.util.ByteArrayDataSource(
+                    attachment.bytes(), "application/octet-stream")));
         p.setFileName(safeName(attachment.name()));
         p.setDisposition(Part.ATTACHMENT);
         multipart.addBodyPart(p);
@@ -229,8 +238,7 @@ public final class Mime {
     if (crc != null) {
       CRC32 actual = new CRC32();
       actual.update(bytes);
-      if (actual.getValue() != crc)
-        throw new IOException("yEnc CRC32 mismatch");
+      if (actual.getValue() != crc) throw new IOException("yEnc CRC32 mismatch");
     }
     return new Yenc(name, begin, end, total, bytes, multipart, fileCrc);
   }
@@ -240,6 +248,16 @@ public final class Mime {
     if (!match.find()) return null;
     if (!match.group(1).matches("[0-9a-fA-F]{8}")) throw new IOException("Invalid yEnc " + field);
     return Long.parseUnsignedLong(match.group(1), 16);
+  }
+
+  private static long attribute(String line, String name, long fallback) throws IOException {
+    var m = Pattern.compile("(?:^| )" + name + "=(\\d+)(?: |$)").matcher(line);
+    if (!m.find()) return fallback;
+    try {
+      return Long.parseLong(m.group(1));
+    } catch (NumberFormatException e) {
+      throw new IOException("Invalid yEnc " + name, e);
+    }
   }
 
   public record Attachment(String name, byte[] bytes) {
@@ -252,15 +270,11 @@ public final class Mime {
   public record Decoded(Map<String, String> headers, String text, List<Attachment> attachments) {}
 
   public record Yenc(
-      String name, long begin, long end, long total, byte[] bytes, boolean multipart, Long fileCrc32) {}
-
-  private static long attribute(String line, String name, long fallback) throws IOException {
-    var m = Pattern.compile("(?:^| )" + name + "=(\\d+)(?: |$)").matcher(line);
-    if (!m.find()) return fallback;
-    try {
-      return Long.parseLong(m.group(1));
-    } catch (NumberFormatException e) {
-      throw new IOException("Invalid yEnc " + name, e);
-    }
-  }
+      String name,
+      long begin,
+      long end,
+      long total,
+      byte[] bytes,
+      boolean multipart,
+      Long fileCrc32) {}
 }

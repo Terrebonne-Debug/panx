@@ -7,7 +7,11 @@ public final class TestData {
   private TestData() {}
 
   public static Server seed(Store store) throws Exception {
-    Server server = store.servers().stream().filter(s -> s.host().equals("fixture.invalid")).findFirst().orElse(null);
+    Server server =
+        store.servers().stream()
+            .filter(s -> s.host().equals("fixture.invalid"))
+            .findFirst()
+            .orElse(null);
     if (server == null)
       server =
           store.saveServer(

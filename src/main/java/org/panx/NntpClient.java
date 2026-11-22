@@ -12,6 +12,7 @@ public final class NntpClient implements AutoCloseable {
   private final BufferedReader in;
   private final BufferedWriter out;
   private boolean legacyOverview;
+
   public NntpClient(Server server) throws IOException {
     Socket plain = new Socket();
     try {
@@ -62,6 +63,17 @@ public final class NntpClient implements AutoCloseable {
   public static void validateId(String id) {
     if (id == null || !id.matches("<[^<>\\s]+>"))
       throw new IllegalArgumentException("Invalid Message-ID");
+  }
+
+  private static boolean unsupportedOverview(String response) {
+    if (response.startsWith("500 ") || response.startsWith("501 ")) return true;
+    // Some legacy providers use 400 for an unknown verb while keeping the session open.
+    // Other 400 replies mean service shutdown and must be reported without a retry.
+    return response.startsWith("400 ")
+        && response
+            .toLowerCase(Locale.ROOT)
+            .matches(
+                ".*(?:unrecogni[sz]ed|unknown|unsupported|not supported|not recogni[sz]ed).*command.*|.*command.*(?:unrecogni[sz]ed|unknown|unsupported|not supported|not recogni[sz]ed).*");
   }
 
   private String readLine() throws IOException {
@@ -135,14 +147,6 @@ public final class NntpClient implements AutoCloseable {
       } catch (IllegalArgumentException ignored) {
       }
     return articles;
-  }
-
-  private static boolean unsupportedOverview(String response) {
-    if (response.startsWith("500 ") || response.startsWith("501 ")) return true;
-    // Some legacy providers use 400 for an unknown verb while keeping the session open.
-    // Other 400 replies mean service shutdown and must be reported without a retry.
-    return response.startsWith("400 ")
-        && response.toLowerCase(Locale.ROOT).matches(".*(?:unrecogni[sz]ed|unknown|unsupported|not supported|not recogni[sz]ed).*command.*|.*command.*(?:unrecogni[sz]ed|unknown|unsupported|not supported|not recogni[sz]ed).*" );
   }
 
   public String article(String messageId) throws IOException {

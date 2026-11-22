@@ -78,10 +78,13 @@ public final class Store implements AutoCloseable {
       transaction(() -> {
         try (var s = db.createStatement()) {
           // Remove only the retired built-in sample profile and its dependent data.
-          s.executeUpdate("DELETE FROM settings WHERE key='default-server' AND value IN (SELECT CAST(id AS TEXT) FROM servers WHERE host='demo.invalid')");
-          s.executeUpdate("DELETE FROM jobs WHERE server IN (SELECT id FROM servers WHERE host='demo.invalid')");
+          s.executeUpdate(
+              "DELETE FROM settings WHERE key='default-server' AND value IN (SELECT CAST(id AS TEXT) FROM servers WHERE host='demo.invalid')");
+          s.executeUpdate(
+              "DELETE FROM jobs WHERE server IN (SELECT id FROM servers WHERE host='demo.invalid')");
           s.executeUpdate("DELETE FROM servers WHERE host='demo.invalid'");
-          s.executeUpdate("UPDATE jobs SET state='Paused',detail='Interrupted; resume to retry' WHERE state IN ('Queued','Running')");
+          s.executeUpdate(
+              "UPDATE jobs SET state='Paused',detail='Interrupted; resume to retry' WHERE state IN ('Queued','Running')");
         }
       });
     } catch (Exception e) {
@@ -162,7 +165,9 @@ public final class Store implements AutoCloseable {
   public synchronized Server defaultServer() throws SQLException {
     var profiles = servers();
     String selected = setting("default-server", "");
-    return profiles.stream().filter(s -> Long.toString(s.id()).equals(selected)).findFirst()
+    return profiles.stream()
+        .filter(s -> Long.toString(s.id()).equals(selected))
+        .findFirst()
         .orElse(profiles.isEmpty() ? null : profiles.getFirst());
   }
 
@@ -173,12 +178,14 @@ public final class Store implements AutoCloseable {
   public synchronized boolean remembersPassword(long id) throws SQLException {
     try (var p = db.prepareStatement("SELECT password <> '' FROM servers WHERE id=?")) {
       p.setLong(1, id);
-      try (var result = p.executeQuery()) { return result.next() && result.getBoolean(1); }
+      try (var result = p.executeQuery()) {
+        return result.next() && result.getBoolean(1);
+      }
     }
   }
 
-  public synchronized Server saveServer(Server server, boolean rememberPassword, boolean startupDefault)
-      throws SQLException {
+  public synchronized Server saveServer(
+      Server server, boolean rememberPassword, boolean startupDefault) throws SQLException {
     Server[] saved = new Server[1];
     transaction(() -> {
       saved[0] = saveServer(server, rememberPassword);
@@ -428,17 +435,6 @@ public final class Store implements AutoCloseable {
     }
   }
 
-  public record Rule(long id, String field, String expression, int score) {}
-
-  public record Job(
-      long id,
-      long server,
-      String name,
-      String ids,
-      String directory,
-      String state,
-      String detail) {}
-
   public synchronized List<Job> jobs() throws SQLException {
     var list = new ArrayList<Job>();
     try (var s = db.createStatement();
@@ -482,11 +478,6 @@ public final class Store implements AutoCloseable {
     return list;
   }
 
-  @FunctionalInterface
-  private interface SqlWork {
-    void run() throws SQLException;
-  }
-
   private void transaction(SqlWork work) throws SQLException {
     db.setAutoCommit(false);
     try {
@@ -513,4 +504,20 @@ public final class Store implements AutoCloseable {
       }
     }
   }
+
+  @FunctionalInterface
+  private interface SqlWork {
+    void run() throws SQLException;
+  }
+
+  public record Rule(long id, String field, String expression, int score) {}
+
+  public record Job(
+      long id,
+      long server,
+      String name,
+      String ids,
+      String directory,
+      String state,
+      String detail) {}
 }

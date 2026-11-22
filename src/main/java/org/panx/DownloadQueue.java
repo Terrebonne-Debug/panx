@@ -88,9 +88,12 @@ public final class DownloadQueue implements AutoCloseable {
           check(job.id());
           prefetched.removeFirst().get();
           check(job.id());
-          if (i + window < ids.size()) prefetched.addLast(prefetch(job.id(), server, ids.get(i + window)));
+          if (i + window < ids.size())
+            prefetched.addLast(prefetch(job.id(), server, ids.get(i + window)));
           String raw = store.body(server.id(), ids.get(i));
-          if (raw == null) throw new IOException("Segment was removed from cache during download; resume to retry");
+          if (raw == null)
+            throw new IOException(
+                "Segment was removed from cache during download; resume to retry");
           if (raw.contains("=ybegin ")) {
             var part = Mime.decodeYenc(raw);
             if (i == 0) {
@@ -167,9 +170,16 @@ public final class DownloadQueue implements AutoCloseable {
     }
   }
 
-  /** Futures retain no article bodies; the bounded lookahead is persisted in the compressed cache. */
+  /**
+   * Futures retain no article bodies; the bounded lookahead is persisted in the compressed cache.
+   */
   private Future<?> prefetch(long job, Server server, String id) {
-    return workers.submit(() -> { check(job); news.article(server, id, false); check(job); return null; });
+    return workers.submit(() -> {
+      check(job);
+      news.article(server, id, false);
+      check(job);
+      return null;
+    });
   }
 
   private void state(long id, String state, String detail) {

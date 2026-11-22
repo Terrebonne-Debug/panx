@@ -92,8 +92,7 @@ public final class PanxWindow extends JFrame {
           public Component getListCellRendererComponent(
               JList<?> list, Object value, int index, boolean selected, boolean focus) {
             super.getListCellRendererComponent(list, value, index, selected, focus);
-            if (value instanceof NntpClient.Group g)
-              setText(groupLabel(g));
+            if (value instanceof NntpClient.Group g) setText(groupLabel(g));
             return this;
           }
         });
@@ -226,6 +225,68 @@ public final class PanxWindow extends JFrame {
     loadJobs();
   }
 
+  private static JButton button(String title, Runnable action) {
+    var b = new JButton(title);
+    b.addActionListener(e -> action.run());
+    return b;
+  }
+
+  private static void item(JMenu menu, String title, Runnable action) {
+    var i = new JMenuItem(title);
+    i.addActionListener(e -> action.run());
+    menu.add(i);
+  }
+
+  private static DefaultTableModel tableModel(String... columns) {
+    return new DefaultTableModel(columns, 0) {
+      @Override
+      public boolean isCellEditable(int row, int column) {
+        return false;
+      }
+    };
+  }
+
+  private static void debounce(JTextField input, Runnable action) {
+    debounce(input, () -> {}, action);
+  }
+
+  private static void debounce(JTextField input, Runnable invalidate, Runnable action) {
+    var timer = new javax.swing.Timer(220, e -> action.run());
+    timer.setRepeats(false);
+    input
+        .getDocument()
+        .addDocumentListener(
+            new DocumentListener() {
+              public void insertUpdate(DocumentEvent e) {
+                invalidate.run();
+                timer.restart();
+              }
+
+              public void removeUpdate(DocumentEvent e) {
+                invalidate.run();
+                timer.restart();
+              }
+
+              public void changedUpdate(DocumentEvent e) {
+                invalidate.run();
+                timer.restart();
+              }
+            });
+  }
+
+  private static String groupLabel(NntpClient.Group group) {
+    return (group.subscribed() ? "★ " : "  ") + group.name() + " (" + group.count() + ")";
+  }
+
+  private static JPanel form(Object... fields) {
+    var panel = new JPanel(new GridLayout(0, 2, 8, 8));
+    for (int i = 0; i < fields.length; i += 2) {
+      panel.add(new JLabel((String) fields[i]));
+      panel.add((Component) fields[i + 1]);
+    }
+    return panel;
+  }
+
   private JMenuBar menus() {
     var bar = new JMenuBar();
     JMenu file = new JMenu("File"),
@@ -274,27 +335,6 @@ public final class PanxWindow extends JFrame {
     return bar;
   }
 
-  private static JButton button(String title, Runnable action) {
-    var b = new JButton(title);
-    b.addActionListener(e -> action.run());
-    return b;
-  }
-
-  private static void item(JMenu menu, String title, Runnable action) {
-    var i = new JMenuItem(title);
-    i.addActionListener(e -> action.run());
-    menu.add(i);
-  }
-
-  private static DefaultTableModel tableModel(String... columns) {
-    return new DefaultTableModel(columns, 0) {
-      @Override
-      public boolean isCellEditable(int row, int column) {
-        return false;
-      }
-    };
-  }
-
   private void key(String stroke, Runnable action) {
     getRootPane()
         .getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
@@ -312,39 +352,6 @@ public final class PanxWindow extends JFrame {
                 action.run();
               }
             });
-  }
-
-  private static void debounce(JTextField input, Runnable action) {
-    debounce(input, () -> {}, action);
-  }
-
-  private static void debounce(JTextField input, Runnable invalidate, Runnable action) {
-    var timer = new javax.swing.Timer(220, e -> action.run());
-    timer.setRepeats(false);
-    input
-        .getDocument()
-        .addDocumentListener(
-            new DocumentListener() {
-              public void insertUpdate(DocumentEvent e) {
-                invalidate.run();
-                timer.restart();
-              }
-
-              public void removeUpdate(DocumentEvent e) {
-                invalidate.run();
-                timer.restart();
-              }
-
-              public void changedUpdate(DocumentEvent e) {
-                invalidate.run();
-                timer.restart();
-              }
-            });
-  }
-
-  @FunctionalInterface
-  private interface Work<T> {
-    T run() throws Exception;
   }
 
   private <T> void task(String label, Work<T> work, Consumer<T> done) {
@@ -401,14 +408,15 @@ public final class PanxWindow extends JFrame {
   }
 
   private void reloadServers(Long select) {
-    record Profiles(List<Server> list, Server startup) { }
+    record Profiles(List<Server> list, Server startup) {}
     task(
         "Loading servers",
         () -> new Profiles(store.servers(), store.defaultServer()),
         profiles -> {
           loadingServers = true;
           servers.removeAllItems();
-          Long selected = select != null ? select : profiles.startup() == null ? null : profiles.startup().id();
+          Long selected =
+              select != null ? select : profiles.startup() == null ? null : profiles.startup().id();
           for (var s : profiles.list()) {
             servers.addItem(s);
             if (selected != null && s.id() == selected) servers.setSelectedItem(s);
@@ -416,7 +424,8 @@ public final class PanxWindow extends JFrame {
           loadingServers = false;
           resetReader();
           loadGroups();
-          if (profiles.list().isEmpty()) status.setText("Add a news server using Servers → Add server.");
+          if (profiles.list().isEmpty())
+            status.setText("Add a news server using Servers → Add server.");
         });
   }
 
@@ -438,7 +447,7 @@ public final class PanxWindow extends JFrame {
     String query = groupSearch.getText();
     boolean only = subscribed.isSelected();
     FontMetrics metrics = groups.getFontMetrics(groups.getFont());
-    record Results(GroupListModel model, int width) { }
+    record Results(GroupListModel model, int width) {}
     task(
         "Loading groups",
         () -> {
@@ -457,30 +466,26 @@ public final class PanxWindow extends JFrame {
             groups.setModel(result.model());
             int index = -1;
             for (int i = 0; i < result.model().getSize(); i++)
-              if (result.model().getElementAt(i).name().equals(selected)) { index = i; break; }
+              if (result.model().getElementAt(i).name().equals(selected)) {
+                index = i;
+                break;
+              }
             if (index < 0 && result.model().getSize() > 0) index = 0;
             groups.setSelectedIndex(index);
             displayedGroupsServer = s;
-          } finally { loadingGroups = false; }
+          } finally {
+            loadingGroups = false;
+          }
           if (!sameServer || !Objects.equals(selected, group())) {
             resetReader();
             loadArticles(null);
           }
-          status.setText(result.model().getSize() + " cached groups (up to 10,000; search to narrow)");
+          status.setText(
+              result.model().getSize() + " cached groups (up to 10,000; search to narrow)");
         },
-        failure -> { if (generation == groupGeneration && server() == s) error(failure); });
-  }
-
-  private static String groupLabel(NntpClient.Group group) {
-    return (group.subscribed() ? "★ " : "  ") + group.name() + " (" + group.count() + ")";
-  }
-
-  /** Immutable snapshots avoid thousands of list events and repeated layout on the UI thread. */
-  private static final class GroupListModel extends AbstractListModel<NntpClient.Group> {
-    final List<NntpClient.Group> rows;
-    GroupListModel(List<NntpClient.Group> rows) { this.rows = List.copyOf(rows); }
-    @Override public int getSize() { return rows.size(); }
-    @Override public NntpClient.Group getElementAt(int index) { return rows.get(index); }
+        failure -> {
+          if (generation == groupGeneration && server() == s) error(failure);
+        });
   }
 
   private void loadArticles(String preserveId) {
@@ -630,11 +635,15 @@ public final class PanxWindow extends JFrame {
           if (failure instanceof NntpClient.ProtocolException protocol
               && (protocol.code == 430 || protocol.code == 423)) {
             status.setText("Article unavailable on " + s.name());
-            body.setText("This article is unavailable on " + s.name() + ".\n\n"
-                + "A header can still be listed or cached even when the provider cannot supply the article body. "
-                + "It may have expired, been removed, or be temporarily unavailable.\n\n"
-                + "Select the article again to retry. A header refresh cannot restore a body that the provider no longer has.\n\n"
-                + "Server response: " + protocol.getMessage());
+            body.setText(
+                "This article is unavailable on "
+                    + s.name()
+                    + ".\n\n"
+                    + "A header can still be listed or cached even when the provider cannot supply the article body. "
+                    + "It may have expired, been removed, or be temporarily unavailable.\n\n"
+                    + "Select the article again to retry. A header refresh cannot restore a body that the provider no longer has.\n\n"
+                    + "Server response: "
+                    + protocol.getMessage());
           } else {
             String detail = Objects.requireNonNullElse(failure.getMessage(), failure.toString());
             status.setText("Unable to open article: " + detail);
@@ -874,22 +883,41 @@ public final class PanxWindow extends JFrame {
     try {
       startupDefault.setSelected(old != null && store.isDefaultServer(old.id()));
       remember.setSelected(old != null && store.remembersPassword(old.id()));
+    } catch (Exception e) {
+      error(e);
+      return;
     }
-    catch (Exception e) { error(e); return; }
-    Work<Server> enteredSettings = () -> {
-      port.commitEdit();
-      connections.commitEdit();
-      return new Server(old == null ? 0 : old.id(), name.getText(), host.getText(),
-          (Integer) port.getValue(), tls.isSelected(), user.getText(),
-          new String(pass.getPassword()), (Integer) connections.getValue());
-    };
+    Work<Server> enteredSettings =
+        () -> {
+          port.commitEdit();
+          connections.commitEdit();
+          return new Server(
+              old == null ? 0 : old.id(),
+              name.getText(),
+              host.getText(),
+              (Integer) port.getValue(),
+              tls.isSelected(),
+              user.getText(),
+              new String(pass.getPassword()),
+              (Integer) connections.getValue());
+        };
     var connectionTest = new ConnectionTestPanel(enteredSettings::run);
-    var changed = new DocumentListener() {
-      public void insertUpdate(DocumentEvent e) { connectionTest.settingsChanged(); }
-      public void removeUpdate(DocumentEvent e) { connectionTest.settingsChanged(); }
-      public void changedUpdate(DocumentEvent e) { connectionTest.settingsChanged(); }
-    };
-    for (var field : List.of(name, host, user, pass)) field.getDocument().addDocumentListener(changed);
+    var changed =
+        new DocumentListener() {
+          public void insertUpdate(DocumentEvent e) {
+            connectionTest.settingsChanged();
+          }
+
+          public void removeUpdate(DocumentEvent e) {
+            connectionTest.settingsChanged();
+          }
+
+          public void changedUpdate(DocumentEvent e) {
+            connectionTest.settingsChanged();
+          }
+        };
+    for (var field : List.of(name, host, user, pass))
+      field.getDocument().addDocumentListener(changed);
     port.addChangeListener(e -> connectionTest.settingsChanged());
     connections.addChangeListener(e -> connectionTest.settingsChanged());
     tls.addActionListener(e -> connectionTest.settingsChanged());
@@ -940,15 +968,6 @@ public final class PanxWindow extends JFrame {
         error(e);
       }
     }
-  }
-
-  private static JPanel form(Object... fields) {
-    var panel = new JPanel(new GridLayout(0, 2, 8, 8));
-    for (int i = 0; i < fields.length; i += 2) {
-      panel.add(new JLabel((String) fields[i]));
-      panel.add((Component) fields[i + 1]);
-    }
-    return panel;
   }
 
   private void identity() {
@@ -1133,6 +1152,129 @@ public final class PanxWindow extends JFrame {
         });
   }
 
+  public void shutdown() {
+    if (closing) return;
+    if ((downloads.active()
+            || pending > 0
+            || Arrays.stream(getOwnedWindows()).anyMatch(Window::isVisible))
+        && JOptionPane.showConfirmDialog(
+                this,
+                "Close Panx? Active work will stop; downloads can be resumed. Save any open drafts first.",
+                "Quit",
+                JOptionPane.OK_CANCEL_OPTION)
+            != JOptionPane.OK_OPTION) return;
+    closeResources();
+  }
+
+  /** Also used by the desktop integration test, after its asynchronous work has completed. */
+  void closeResources() {
+    if (closing) return;
+    closing = true;
+    jobTimer.stop();
+    dispose();
+    Thread.ofPlatform()
+        .name("panx-shutdown")
+        .start(() -> {
+          news.close();
+          downloads.close();
+          workers.shutdownNow();
+          try {
+            workers.awaitTermination(5, TimeUnit.SECONDS);
+            store.close();
+          } catch (Exception e) {
+            System.err.println("Panx close: " + e.getMessage());
+          }
+        });
+  }
+
+  @FunctionalInterface
+  private interface Work<T> {
+    T run() throws Exception;
+  }
+
+  /** Immutable snapshots avoid thousands of list events and repeated layout on the UI thread. */
+  private static final class GroupListModel extends AbstractListModel<NntpClient.Group> {
+    final List<NntpClient.Group> rows;
+
+    GroupListModel(List<NntpClient.Group> rows) {
+      this.rows = List.copyOf(rows);
+    }
+
+    @Override
+    public int getSize() {
+      return rows.size();
+    }
+
+    @Override
+    public NntpClient.Group getElementAt(int index) {
+      return rows.get(index);
+    }
+  }
+
+  private static final class ArticleModel extends AbstractTableModel {
+    final String[] columns = {"State", "Subject", "From", "Date", "Bytes", "Score"};
+    List<Threads.Row> rows = List.of();
+
+    void setRows(List<Threads.Row> rows) {
+      this.rows = rows;
+      fireTableDataChanged();
+    }
+
+    void mark(String id, boolean read, boolean flag) {
+      var updated = new ArrayList<>(rows);
+      for (int i = 0; i < updated.size(); i++) {
+        var row = updated.get(i);
+        var a = row.article();
+        if (a.messageId().equals(id)) {
+          updated.set(
+              i,
+              new Threads.Row(
+                  new Article(
+                      a.number(),
+                      a.subject(),
+                      a.from(),
+                      a.date(),
+                      a.messageId(),
+                      a.references(),
+                      a.bytes(),
+                      a.lines(),
+                      read,
+                      flag),
+                  row.depth(),
+                  row.score()));
+          rows = List.copyOf(updated);
+          fireTableRowsUpdated(i, i);
+          return;
+        }
+      }
+    }
+
+    public int getRowCount() {
+      return rows.size();
+    }
+
+    public int getColumnCount() {
+      return columns.length;
+    }
+
+    public String getColumnName(int column) {
+      return columns[column];
+    }
+
+    public Object getValueAt(int row, int column) {
+      var r = rows.get(row);
+      var a = r.article();
+      return switch (column) {
+        case 0 -> (a.flagged() ? "★ " : "") + (a.read() ? "" : "●");
+        case 1 -> "  ".repeat(r.depth()) + a.subject();
+        case 2 -> a.from();
+        case 3 -> a.date();
+        case 4 -> a.bytes();
+        default -> r.score();
+      };
+    }
+  }
+
   private final class Composer extends JDialog {
     final Server target;
     final JTextField from, to, subject, refs;
@@ -1283,105 +1425,6 @@ public final class PanxWindow extends JFrame {
           });
         }
       });
-    }
-  }
-
-  public void shutdown() {
-    if (closing) return;
-    if ((downloads.active()
-            || pending > 0
-            || Arrays.stream(getOwnedWindows()).anyMatch(Window::isVisible))
-        && JOptionPane.showConfirmDialog(
-                this,
-                "Close Panx? Active work will stop; downloads can be resumed. Save any open drafts first.",
-                "Quit",
-                JOptionPane.OK_CANCEL_OPTION)
-            != JOptionPane.OK_OPTION) return;
-    closeResources();
-  }
-
-  /** Also used by the desktop integration test, after its asynchronous work has completed. */
-  void closeResources() {
-    if (closing) return;
-    closing = true;
-    jobTimer.stop();
-    dispose();
-    Thread.ofPlatform()
-        .name("panx-shutdown")
-        .start(() -> {
-          news.close();
-          downloads.close();
-          workers.shutdownNow();
-          try {
-            workers.awaitTermination(5, TimeUnit.SECONDS);
-            store.close();
-          } catch (Exception e) {
-            System.err.println("Panx close: " + e.getMessage());
-          }
-        });
-  }
-
-  private static final class ArticleModel extends AbstractTableModel {
-    List<Threads.Row> rows = List.of();
-    final String[] columns = {"State", "Subject", "From", "Date", "Bytes", "Score"};
-
-    void setRows(List<Threads.Row> rows) {
-      this.rows = rows;
-      fireTableDataChanged();
-    }
-
-    void mark(String id, boolean read, boolean flag) {
-      var updated = new ArrayList<>(rows);
-      for (int i = 0; i < updated.size(); i++) {
-        var row = updated.get(i);
-        var a = row.article();
-        if (a.messageId().equals(id)) {
-          updated.set(
-              i,
-              new Threads.Row(
-                  new Article(
-                      a.number(),
-                      a.subject(),
-                      a.from(),
-                      a.date(),
-                      a.messageId(),
-                      a.references(),
-                      a.bytes(),
-                      a.lines(),
-                      read,
-                      flag),
-                  row.depth(),
-                  row.score()));
-          rows = List.copyOf(updated);
-          fireTableRowsUpdated(i, i);
-          return;
-        }
-      }
-    }
-
-    public int getRowCount() {
-      return rows.size();
-    }
-
-    public int getColumnCount() {
-      return columns.length;
-    }
-
-    public String getColumnName(int column) {
-      return columns[column];
-    }
-
-    public Object getValueAt(int row, int column) {
-      var r = rows.get(row);
-      var a = r.article();
-      return switch (column) {
-        case 0 -> (a.flagged() ? "★ " : "") + (a.read() ? "" : "●");
-        case 1 -> "  ".repeat(r.depth()) + a.subject();
-        case 2 -> a.from();
-        case 3 -> a.date();
-        case 4 -> a.bytes();
-        default -> r.score();
-      };
     }
   }
 }

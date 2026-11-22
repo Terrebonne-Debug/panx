@@ -16,6 +16,10 @@ public final class NewsService implements AutoCloseable {
     this.store = store;
   }
 
+  private static Exception unwrap(Exception e) {
+    return e instanceof ExecutionException && e.getCause() instanceof Exception cause ? cause : e;
+  }
+
   private <T> T session(Server server, Operation<T> work) throws Exception {
     if (closed) throw new IOException("Service is closed");
     Pool pool = pool(server);
@@ -148,6 +152,22 @@ public final class NewsService implements AutoCloseable {
     }
   }
 
+  public void post(Server server, String raw) throws Exception {
+    session(
+        server,
+        c -> {
+          c.post(raw);
+          return null;
+        });
+  }
+
+  @Override
+  public void close() {
+    closed = true;
+    workers.shutdownNow();
+    pools.values().forEach(Pool::close);
+  }
+
   @FunctionalInterface
   private interface Operation<T> {
     T run(NntpClient c) throws Exception;
@@ -157,10 +177,10 @@ public final class NewsService implements AutoCloseable {
     final Server server;
     final java.util.concurrent.locks.ReentrantReadWriteLock lifecycle =
         new java.util.concurrent.locks.ReentrantReadWriteLock();
-    volatile boolean closed;
     final Semaphore slots;
     final ConcurrentLinkedQueue<NntpClient> idle = new ConcurrentLinkedQueue<>();
     final Set<NntpClient> all = ConcurrentHashMap.newKeySet();
+    volatile boolean closed;
 
     Pool(Server server) {
       this.server = server;
@@ -183,25 +203,5 @@ public final class NewsService implements AutoCloseable {
         lifecycle.writeLock().unlock();
       }
     }
-  }
-
-  public void post(Server server, String raw) throws Exception {
-    session(
-        server,
-        c -> {
-          c.post(raw);
-          return null;
-        });
-  }
-
-  private static Exception unwrap(Exception e) {
-    return e instanceof ExecutionException && e.getCause() instanceof Exception cause ? cause : e;
-  }
-
-  @Override
-  public void close() {
-    closed = true;
-    workers.shutdownNow();
-    pools.values().forEach(Pool::close);
   }
 }
